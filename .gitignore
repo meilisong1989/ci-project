@@ -1,0 +1,12 @@
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+backend/__pycache__/
+backend/.venv/
+deploy/.env
+*.log
+.idea/
+.vscode/
+start.ps1
+start.sh
+start.cmd

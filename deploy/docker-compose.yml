@@ -1,0 +1,47 @@
+services:
+  frontend:
+    image: ${IMAGE_REPOSITORY}:frontend-${IMAGE_TAG}
+    restart: unless-stopped
+    ports: ["80:80"]
+    depends_on:
+      backend: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks: [case-network]
+  backend:
+    image: ${IMAGE_REPOSITORY}:backend-${IMAGE_TAG}
+    restart: unless-stopped
+    expose: ["8080"]
+    environment:
+      SERVER_PORT: ${SERVER_PORT}
+      DB_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks: [case-network]
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: ["postgres-data:/var/lib/postgresql/data", "./init.sql:/docker-entrypoint-initdb.d/init.sql:ro"]
+    expose: ["5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [case-network]
+volumes: { postgres-data: {} }
+networks: { case-network: { driver: bridge } }

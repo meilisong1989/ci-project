@@ -1,0 +1,1 @@
+import {defineStore} from 'pinia';import {info} from '@/api';export const useUser=defineStore('user',{state:()=>({data:null as any}),actions:{async load(){this.data=await info()},logout(){localStorage.removeItem('token');this.data=null}}})
