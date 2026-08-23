@@ -93,7 +93,10 @@ pipeline {
           def good = false
           for (int i = 0; i < 6; i++) {
             sleep time: 10, unit: 'SECONDS'
-            if (sh(script: 'curl -fsS http://127.0.0.1/api/health', returnStatus: true) == 0) {
+            if (sh(script: '''
+              cd "$DEPLOY_PATH"
+              docker compose exec -T frontend wget -q -O - http://127.0.0.1/api/health
+            ''', returnStatus: true) == 0) {
               good = true
               break
             }
