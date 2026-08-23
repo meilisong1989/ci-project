@@ -75,8 +75,9 @@ pipeline {
       options { timeout(time: 10, unit: 'MINUTES') }
       steps {
         sh '''
-          test -f $DEPLOY_PATH/docker-compose.yml
+          test -f deploy/docker-compose.yml
           test -f $DEPLOY_PATH/.env
+          cp deploy/docker-compose.yml $DEPLOY_PATH/docker-compose.yml
           cd $DEPLOY_PATH
           cp .env .env.previous
           sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$TAG/" .env

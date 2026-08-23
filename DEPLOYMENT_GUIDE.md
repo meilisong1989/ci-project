@@ -92,7 +92,7 @@ init.sql
 
 ### 4.3 生产 `.env`
 
-在 `/opt/ci-project/.env` 中填写。密码仅使用字母、数字和下划线，避免 PostgreSQL URL 中的特殊字符解析错误：
+在 `/opt/ci-project/.env` 中填写。原始密码用于 PostgreSQL 容器；`POSTGRES_PASSWORD_URLENCODED` 用于后端连接 URL，须是同一密码的 URL 编码值（例如 `@` 编码为 `%40`）：
 
 ```env
 IMAGE_REPOSITORY=crpi-fzzu10dkr9pvcmtt.cn-hangzhou.personal.cr.aliyuncs.com/mydev1/dev
@@ -100,7 +100,8 @@ IMAGE_TAG=initial
 
 POSTGRES_DB=ci-project
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=replace_with_a_strong_alphanumeric_password
+POSTGRES_PASSWORD=replace_with_a_strong_password
+POSTGRES_PASSWORD_URLENCODED=replace_with_the_url_encoded_password
 JWT_SECRET=replace_with_a_random_secret_at_least_32_characters
 SERVER_PORT=8080
 CORS_ORIGINS=*

@@ -67,4 +67,6 @@ def statistics(_:User=Depends(current_user),db:Session=Depends(get_db)):
     rows=db.execute(select(TestCase.status,func.count()).group_by(TestCase.status)).all(); prs=db.execute(select(TestCase.priority,func.count()).group_by(TestCase.priority)).all()
     return ok({"total":db.scalar(select(func.count()).select_from(TestCase)) or 0,"status":{k:v for k,v in rows},"priority":{k:v for k,v in prs}})
 @app.get("/api/health")
-def health(): return ok({"status":"ok"})
+def health(db: Session = Depends(get_db)):
+    db.scalar(select(1))
+    return ok({"status":"ok"})
