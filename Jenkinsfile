@@ -2,18 +2,15 @@ pipeline {
   agent any
 
   options {
-    timestamps()
     skipDefaultCheckout()
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '20'))
   }
 
   environment {
-    // 阿里云个人版容器镜像服务。前端与后端通过 Tag 区分。
-    REGISTRY_HOST = 'crpi-fzzu10dkr9pvcmtt.cn-hangzhou.personal.cr.aliyuncs.com'
+    // 阿里云个人版容器镜像服务。前端与后端通过 Tag 区分�?    REGISTRY_HOST = 'crpi-fzzu10dkr9pvcmtt.cn-hangzhou.personal.cr.aliyuncs.com'
     IMAGE_REPOSITORY = 'crpi-fzzu10dkr9pvcmtt.cn-hangzhou.personal.cr.aliyuncs.com/mydev1/dev'
-    // Jenkins 和业务容器部署在同一台 Ubuntu 云服务器。
-    DEPLOY_PATH = '/opt/ci-project'
+    // Jenkins 和业务容器部署在同一�?Ubuntu 云服务器�?    DEPLOY_PATH = '/opt/ci-project'
   }
 
   triggers {
@@ -36,7 +33,7 @@ pipeline {
     stage('Build Frontend') {
       options { timeout(time: 15, unit: 'MINUTES') }
       steps {
-        echo '按照 pnpm-lock.yaml 在 Docker 中构建前端'
+        echo '按照 pnpm-lock.yaml �?Docker 中构建前�?
         sh 'docker build --pull -t $IMAGE_REPOSITORY:frontend-$TAG frontend'
       }
     }
@@ -44,7 +41,7 @@ pipeline {
     stage('Build Backend') {
       options { timeout(time: 15, unit: 'MINUTES') }
       steps {
-        echo '构建后端镜像，并校验应用模块可导入'
+        echo '构建后端镜像，并校验应用模块可导�?
         sh '''
           docker build --pull -t $IMAGE_REPOSITORY:backend-$TAG backend
           docker run --rm $IMAGE_REPOSITORY:backend-$TAG python -c "import app.main; print('backend import check passed')"
@@ -64,8 +61,7 @@ pipeline {
             echo "$REGISTRY_TOKEN" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USER" --password-stdin
             docker push $IMAGE_REPOSITORY:frontend-$TAG
             docker push $IMAGE_REPOSITORY:backend-$TAG
-            # 同一 Jenkins 用户随后要执行 docker compose pull 拉取私有镜像，不能在此退出仓库。
-          '''
+            # 同一 Jenkins 用户随后要执�?docker compose pull 拉取私有镜像，不能在此退出仓库�?          '''
         }
       }
     }
@@ -104,7 +100,7 @@ pipeline {
               docker compose pull
               docker compose up -d --remove-orphans
             '''
-            error('健康检查失败，已回滚到上一个镜像版本')
+            error('健康检查失败，已回滚到上一个镜像版�?)
           }
         }
       }
@@ -112,8 +108,8 @@ pipeline {
   }
 
   post {
-    success { echo "部署成功：${IMAGE_REPOSITORY}，版本 ${env.TAG ?: 'unknown'}" }
-    failure { echo "部署失败：${IMAGE_REPOSITORY}，版本 ${env.TAG ?: 'unknown'}" }
+    success { echo "部署成功�?{IMAGE_REPOSITORY}，版�?${env.TAG ?: 'unknown'}" }
+    failure { echo "部署失败�?{IMAGE_REPOSITORY}，版�?${env.TAG ?: 'unknown'}" }
     always { cleanWs(deleteDirs: true, notFailBuild: true) }
   }
 }
