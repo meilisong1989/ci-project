@@ -343,3 +343,62 @@ docker compose up -d --remove-orphans
 ```
 
 不要删除 `postgres-data` volume；删除它会永久丢失数据库数据。
+## 12. 部署难点与注意事项
+
+本节汇总本项目实际部署中出现过、且在同类项目中最容易复发的问题。上线前应逐项检查。
+
+### 12.1 Git 分支、Jenkinsfile 与文件编码
+
+- Jenkins 任务的 `Branches to build` 必须与真实分支一致。本项目使用 `*/main`；保留默认的 `*/master` 会导致无法拉到预期版本。
+- Pipeline 类型必须选择 **Pipeline script from SCM**，脚本路径为根目录 `Jenkinsfile`。
+- `Jenkinsfile` 应保存为 UTF-8。通过部分 Windows PowerShell 命令改写文件时，可能破坏中文文本或引号，进而导致 Groovy 编译失败。提交前应检查 `git diff`，并在 Jenkins 中用一次构建验证语法。
+- GitHub 公开仓库无需 Clone 凭据；`Could not resolve host: github.com` 是 DNS 问题，不是 Token、证书或分支权限问题。
+
+### 12.2 Jenkins 容器与宿主机 Docker 的边界
+
+- 官方 Jenkins 镜像默认没有 Git、Docker CLI 和 Compose 插件，必须使用自定义镜像或独立 Agent 补齐。
+- 本方案挂载 `/var/run/docker.sock`，Jenkins 通过宿主机 Docker 构建和运行应用。Socket 或 Docker 组等价于高权限，应仅允许可信管理员和可信仓库使用。
+- 不要将 Podman 的 `docker` 兼容层与 Docker Socket 方案混用。Podman 网络、Compose 语义和 Socket 路径不同，容易造成 DNS、构建和部署行为不一致。
+- Jenkins 容器的 `127.0.0.1` 指向 Jenkins 容器本身，不是宿主机网站。部署检查必须经由 `docker compose exec frontend`，或显式使用宿主机网络。
+- Jenkins 容器必须能解析 GitHub 和镜像仓库域名；先用 `getent ahostsv4 github.com` 验证 DNS，再排查 Git 配置。
+
+### 12.3 前端依赖构建的可重复性
+
+- pnpm 版本必须与 Node 版本兼容。本项目的 pnpm 11.22 需要 Node 22，因此前端构建镜像使用 `node:22-alpine`。
+- pnpm 的构建脚本许可写在 `pnpm-workspace.yaml`。Dockerfile 必须在 `pnpm install --frozen-lockfile` 之前复制该文件，否则 `esbuild` 等依赖会被拒绝执行，构建失败。
+- 使用 `--frozen-lockfile`，避免 CI 过程悄然改写依赖版本。
+- 建议后续在 `package.json` 固定 `packageManager` 版本，并将基础镜像固定到 digest，以增强可重复构建能力。
+
+### 12.4 前端静态文件和 Nginx 反向代理
+
+- Nginx 的 SPA 回退规则依赖站点根目录存在 `index.html`。若日志出现 `rewrite or internal redirection cycle while internally redirecting to "/index.html"`，说明根目录缺少入口文件，浏览器会收到 500。
+- Dockerfile 应明确使用：
+
+  ```dockerfile
+  COPY --from=builder /app/dist/ /usr/share/nginx/html/
+  ```
+
+  这会将构建产物内容放入 Nginx 根目录。
+- `/api/health` 返回 200 只代表后端和代理正常；部署健康检查还必须请求首页 `/`，否则静态站点故障会被误判为发布成功。
+
+### 12.5 镜像仓库、机密与配置
+
+- `IMAGE_REPOSITORY` 必须是完整的阿里云镜像地址；前端、后端仅通过 `frontend-<SHA>`、`backend-<SHA>` Tag 区分。
+- Jenkins 全局或 Folder 凭据中必须存在 ID 为 `registry-credentials` 的 **Username with password**；凭据 ID 不匹配会在推送阶段失败。
+- Registry 密码、数据库密码、JWT 密钥和 Jenkins 密钥不得写入 Git。服务器 `/opt/ci-project/.env` 只保存在主机上，并设置为 `600` 权限。
+- 当前 Compose 使用 `POSTGRES_PASSWORD` 初始化数据库，并使用同一密码的 `POSTGRES_PASSWORD_URLENCODED` 拼入 `DB_URL`；两者必须匹配。原密码可包含特殊字符，但 URL 编码值必须正确（例如 `@` 写为 `%40`）。
+- 定期轮换 Registry、数据库和 JWT 机密；多人团队应转向 Vault 或云厂商的 Secret/KMS 服务。
+
+### 12.6 数据库、回滚与数据安全
+
+- PostgreSQL 由 Compose 启动，无需在宿主机安装。数据保存在 `postgres-data` volume；绝不能将该 volume 当作普通缓存清理。
+- `init.sql` 仅在数据卷第一次创建时执行。后续表结构变更必须使用数据库迁移工具，不能依赖重启容器。
+- 首次发布没有可回滚的已发布镜像。当前流水线会先把 `.env` 复制为 `.env.previous`；若首发健康检查失败，回滚逻辑会恢复原来的 `IMAGE_TAG=initial` 并尝试拉取，因此不能作为可靠回滚。首发失败时应保留日志、修复后重新发布；后续发布才具备回滚到上一 SHA Tag 的基础。
+- 建立数据库定期备份、异地保存和恢复演练；没有验证过恢复的备份不等于可用备份。
+
+### 12.7 网络、访问控制与发布治理
+
+- 外网访问业务只需要 `80/tcp`（以及后续 HTTPS 的 `443/tcp`）；不要开放 `5432`。
+- Jenkins `8080` 应限制管理 IP/VPN，并通过 HTTPS 反向代理暴露 GitHub Webhook 所需的 `/github-webhook/` 路径。
+- 推送 `main` 自动部署适合内部测试环境。生产环境建议引入 `dev/test/prod` 环境、分支保护、镜像扫描、人工审批和 Tag 发布。
+- 运行中应监控容器状态、CPU/内存、磁盘、数据库容量与镜像空间；同时保留 Jenkins 构建记录和应用日志，便于审计与故障追踪。
