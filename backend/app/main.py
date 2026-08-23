@@ -47,6 +47,10 @@ def update_case(case_id:int,body:CaseIn,_:User=Depends(current_user),db:Session=
     if not c: raise HTTPException(404,"用例不存在")
     for key,value in body.model_dump().items(): setattr(c,key,value)
     c.update_time=datetime.now();db.commit();return ok()
+@app.get("/api/cases/statistics")
+def statistics(_:User=Depends(current_user),db:Session=Depends(get_db)):
+    rows=db.execute(select(TestCase.status,func.count()).group_by(TestCase.status)).all(); prs=db.execute(select(TestCase.priority,func.count()).group_by(TestCase.priority)).all()
+    return ok({"total":db.scalar(select(func.count()).select_from(TestCase)) or 0,"status":{k:v for k,v in rows},"priority":{k:v for k,v in prs}})
 @app.get("/api/cases/{case_id}")
 def get_case(case_id:int,_:User=Depends(current_user),db:Session=Depends(get_db)):
     c=db.get(TestCase,case_id)
@@ -62,10 +66,6 @@ def list_cases(current:int=1,size:int=10,module:str|None=None,priority:str|None=
     total=db.scalar(select(func.count()).select_from(q.subquery())) or 0
     records=db.scalars(q.order_by(TestCase.update_time.desc()).offset((current-1)*size).limit(size)).all()
     return ok({"records":[case_dict(c) for c in records],"total":total,"current":current,"size":size})
-@app.get("/api/cases/statistics")
-def statistics(_:User=Depends(current_user),db:Session=Depends(get_db)):
-    rows=db.execute(select(TestCase.status,func.count()).group_by(TestCase.status)).all(); prs=db.execute(select(TestCase.priority,func.count()).group_by(TestCase.priority)).all()
-    return ok({"total":db.scalar(select(func.count()).select_from(TestCase)) or 0,"status":{k:v for k,v in rows},"priority":{k:v for k,v in prs}})
 @app.get("/api/health")
 def health(db: Session = Depends(get_db)):
     db.scalar(select(1))
