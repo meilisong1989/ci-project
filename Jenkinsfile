@@ -64,6 +64,8 @@ pipeline {
             docker push $IMAGE_REPOSITORY:frontend-$TAG
             docker push $IMAGE_REPOSITORY:backend-$TAG
             # 同一 Jenkins 用户随后要执行 docker compose pull 拉取私有镜像，不能在此退出仓库。
+            echo "镜像构建并推送成功: $IMAGE_REPOSITORY:frontend-$TAG"
+            echo "镜像构建并推送成功: $IMAGE_REPOSITORY:backend-$TAG"
           '''
         }
       }
